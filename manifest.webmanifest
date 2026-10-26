@@ -1,0 +1,17 @@
+{
+  "name": "JARVIS by Ariosto Prudenziano",
+  "short_name": "Jarvis",
+  "description": "Assistente personale con ologrammi, voce, occhi e laboratorio di ingegneria.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#04070e",
+  "theme_color": "#04070e",
+  "lang": "it",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
