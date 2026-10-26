@@ -492,7 +492,7 @@ const Cervello = (() => {
       'La tua risposta viene letta ad alta voce: massimo 3 frasi brevi, niente elenchi puntati, niente markdown, niente indirizzi web. ' +
       'Non inventare MAI fatti, numeri o dati: se non sai, dillo. Per i calcoli esatti l\'utente ha un laboratorio dedicato: ' +
       'se chiede un conto, invitalo a scrivere "quanto fa ..." che viene risolto con precisione. ' +
-      'Non hai accesso a internet in tempo reale ne al controllo del telefono: sii onesto su questo invece di fingere.' +
+      'Puoi cercare sul web quando serve. Non controlli il telefono ne le altre app: su questo sii onesto invece di fingere.' +
       '\nData e ora: '+ora + (chisei ? '\nChi e l\'utente: '+chisei : '');
   }
 
@@ -520,10 +520,57 @@ const Cervello = (() => {
     return risp.json();
   }
 
+  /* Vero se la domanda riguarda fatti che cambiano nel tempo: serve cercare. */
+  function serveRicerca(t){
+    return /\b(cerca|cercami|ricerca|trova|notizie|meteo|che tempo|previsioni|prezzo|quanto costa|quotazione|borsa|oggi|adesso|ultime|ultimo|novita|novità|chi e |chi è |chi era|cosa e successo|risultat\w+|classifica|orari|quando esce|aggiornament\w+|nel 202\d)\b/i.test(t);
+  }
+
+  /**
+   * La ricerca la fa Groq sui suoi server, non il browser.
+   * Nel browser una pagina non puo scaricare da altri siti (il blocco CORS),
+   * ma possiamo chiedere a Groq di cercare per noi e restituirci il risultato.
+   */
+  async function cercaWeb(domanda){
+    const ks = chiavi();
+    const sys = 'Sei il ricercatore di Jarvis. Cerca sul web e rispondi in italiano con i dati concreti che trovi. ' +
+      'Massimo 4 frasi, nessun elenco puntato, nessun indirizzo web, niente markdown. ' +
+      'Se non trovi nulla di affidabile dillo chiaramente invece di inventare.';
+    for (const k of ks){
+      for (const mod of ['openai/gpt-oss-120b','openai/gpt-oss-20b']){
+        try {
+          const j = await post({
+            model: mod,
+            messages: [{role:'system',content:sys},{role:'user',content:domanda}],
+            tools: [{type:'browser_search'}],
+            tool_choice: 'required',
+            temperature: 0.3
+          }, k);
+          let r = (j.choices && j.choices[0] && j.choices[0].message.content || '').trim();
+          r = r.replace(/【[^】]*】/g,'').replace(/\[\d+\]/g,'').trim();   // via i riferimenti
+          if (r) return r;
+        } catch(e){
+          if (e.code===401 || e.code===403) break;
+        }
+      }
+    }
+    return null;
+  }
+
   async function chiedi(testo){
     const ks = chiavi();
     if (!ks.length) return 'Serve la chiave di Groq: aprila in Impostazioni. Si crea gratis su console.groq.com.';
-    const msgs = [{role:'system',content:sistema()}, ...storia(), {role:'user',content:testo}];
+
+    /* domande su fatti attuali: prima si cerca davvero */
+    if (serveRicerca(testo)){
+      const trovato = await cercaWeb(testo);
+      if (trovato){ ricorda(testo, trovato); return trovato; }
+      // la ricerca non e disponibile: si prosegue, ma senza fingere di sapere
+    }
+
+    const extra = serveRicerca(testo)
+      ? '\nATTENZIONE: la ricerca sul web non e riuscita. Di\' con onestà che non sei riuscito a cercare e che quindi non puoi garantire dati aggiornati. NON inventare notizie, prezzi, meteo o risultati.'
+      : '';
+    const msgs = [{role:'system',content:sistema()+extra}, ...storia(), {role:'user',content:testo}];
     let ultimo = null;
     for (const k of ks){
       for (const mod of MODELLI){
